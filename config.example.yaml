@@ -1,0 +1,22 @@
+server:
+  addr: ":8080"
+
+whisper:
+  model_path: "./models/ggml-tiny.bin"
+
+llm:
+  # provider supports: openai, ollama, deepseek
+  provider: "openai"
+  model: ""
+  base_url: ""
+  api_key: ""
+  api_key_env: "OPENAI_API_KEY"
+  timeout: "2m"
+  temperature: 0.2
+  max_tokens: 4096
+
+  # deepseek only. Leave empty to use the provider default path.
+  path: ""
+
+  # ollama only. Example: "5m". Leave empty to use Ollama's default.
+  keep_alive: ""
