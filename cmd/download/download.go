@@ -17,6 +17,7 @@ func Video(url, outputPath string) ([]byte, error) {
 		"yt-dlp",
 		"--no-playlist",
 		"-f", "bv*+ba/b",
+		"--cookies-from-browser", "edge",
 		"--merge-output-format", "mp4",
 		"-o", filepath.Clean(outputPath),
 		url,
@@ -36,6 +37,7 @@ func Audio(url, outputBase string) (string, []byte, error) {
 		"--no-playlist",
 		"-f", "bestaudio/b",
 		"-x",
+		"--cookies-from-browser", "edge",
 		"--audio-format", "mp3",
 		// 0 is best, 10 is worst; 5 is a reasonable default for ASR.
 		"--audio-quality", "5",
