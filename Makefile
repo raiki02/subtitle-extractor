@@ -6,13 +6,15 @@ else
 PYTHON ?= python3
 endif
 
-.PHONY: help deps check-deps deps-python install-ffmpeg install-yt-dlp check-whisper-cli run run-asr test
+.PHONY: help deps check-deps deps-python deps-video-summary install-ffmpeg install-yt-dlp check-whisper-cli run run-asr run-video-summary test
 
 help:
 	@echo "Usage:"
 	@echo "  make deps        Check/install ffmpeg and yt-dlp, and check whisper-cli fallback"
 	@echo "  make deps-python Install Python ASR dependencies"
+	@echo "  make deps-video-summary Install Python Marlin video summary dependencies"
 	@echo "  make run-asr     Run the faster-whisper ASR service"
+	@echo "  make run-video-summary Run the Marlin video summary service"
 	@echo "  make run         Install deps when needed, then run the Go backend service"
 	@echo "  make test        Run Go tests"
 
@@ -22,6 +24,9 @@ check-deps: install-ffmpeg install-yt-dlp check-whisper-cli
 
 deps-python:
 	$(PYTHON) -m pip install -r asr_service/requirements.txt
+
+deps-video-summary:
+	$(PYTHON) -m pip install -r video_summary_service/requirements.txt
 
 ifeq ($(OS),Windows_NT)
 install-ffmpeg:
@@ -70,6 +75,9 @@ run: deps
 
 run-asr:
 	$(PYTHON) -m uvicorn asr_service.app:app --host 0.0.0.0 --port 8001
+
+run-video-summary:
+	$(PYTHON) -m uvicorn video_summary_service.app:app --host 0.0.0.0 --port 8002
 
 test:
 	$(GO) test ./...

@@ -8,6 +8,8 @@
 - Go keeps `/extract` unchanged and returns a video, audio, or text file based on `type`.
 - Python exposes the faster-whisper ASR model through HTTP.
 - Go wraps the Python ASR endpoint as an Eino tool and uses it in the text extraction path.
+- Python exposes NemoStation/Marlin-2B through HTTP for video understanding.
+- Go wraps the Marlin endpoint as Eino tools and uses it for video summaries.
 
 ## Setup
 
@@ -29,12 +31,24 @@ Install Python ASR dependencies:
 make deps-python
 ```
 
+Install Python video summary dependencies:
+
+```bash
+make deps-video-summary
+```
+
 ## Run
 
 Start the ASR service:
 
 ```bash
 make run-asr
+```
+
+Start the video summary service:
+
+```bash
+make run-video-summary
 ```
 
 Start the Go backend in another terminal:
@@ -60,6 +74,7 @@ Supported `type` values:
 - `video`: returns a device-playable mp4
 - `audio`: returns an mp3
 - `text` or `transcript`: returns formatted transcript text
+- `summary` or `video_summary`: returns a Marlin video understanding summary
 
 ## Web UI
 

@@ -7,6 +7,7 @@
 *.dll
 *.so
 *.dylib
+hfd.sh
 
 # Test binary, built with `go test -c`
 *.test
@@ -35,5 +36,5 @@ go.work.sum
 
 **/**/config.yaml
 docker-compose.yaml
-docs/*
-!/models/README.md
+models/*
+!models/README.md

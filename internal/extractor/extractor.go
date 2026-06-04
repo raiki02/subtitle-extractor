@@ -85,9 +85,27 @@ func (s *Service) Extract(ctx context.Context, url, name, extractType string) (R
 		slog.Info("extract.stage", "type", extractType, "stage", "transcript", "elapsed", time.Since(stage))
 		slog.Info("extract.done", "type", extractType, "elapsed", time.Since(start))
 		return Result{Path: textPath, Filename: name + ".txt"}, cleanup, nil
+	case "summary", "video_summary":
+		videoPath := filepath.Join(workDir, name+".mp4")
+		stage := time.Now()
+		if out, err := download.Video(url, videoPath); err != nil {
+			cleanup()
+			return Result{}, nil, commandError("download video failed", out, err)
+		}
+		slog.Info("extract.stage", "type", extractType, "stage", "download_video", "elapsed", time.Since(stage))
+
+		stage = time.Now()
+		summaryPath, err := s.createVideoSummary(ctx, videoPath, workDir, name)
+		if err != nil {
+			cleanup()
+			return Result{}, nil, err
+		}
+		slog.Info("extract.stage", "type", extractType, "stage", "video_summary", "elapsed", time.Since(stage))
+		slog.Info("extract.done", "type", extractType, "elapsed", time.Since(start))
+		return Result{Path: summaryPath, Filename: name + "_summary.txt"}, cleanup, nil
 	default:
 		cleanup()
-		return Result{}, nil, fmt.Errorf("type must be one of: video, audio, text")
+		return Result{}, nil, fmt.Errorf("type must be one of: video, audio, text, summary")
 	}
 }
 
@@ -127,6 +145,28 @@ func (s *Service) createTranscript(ctx context.Context, audioPath, workDir, name
 		return "", fmt.Errorf("write formatted transcript failed: %w", err)
 	}
 	return formattedTextPath, nil
+}
+
+func (s *Service) createVideoSummary(ctx context.Context, videoPath, workDir, name string) (string, error) {
+	stage := time.Now()
+	summaryAgent, err := agent.NewVideoSummaryAgent(s.cfg)
+	if err != nil {
+		return "", err
+	}
+	slog.Info("extract.stage", "type", "summary", "stage", "init_video_summary_agent", "elapsed", time.Since(stage))
+
+	stage = time.Now()
+	summaryText, err := summaryAgent.Run(ctx, videoPath)
+	if err != nil {
+		return "", err
+	}
+	slog.Info("extract.stage", "type", "summary", "stage", "marlin_caption", "elapsed", time.Since(stage))
+
+	summaryPath := filepath.Join(workDir, fmt.Sprintf("%s_summary.txt", name))
+	if err := os.WriteFile(summaryPath, []byte(summaryText), 0644); err != nil {
+		return "", fmt.Errorf("write video summary failed: %w", err)
+	}
+	return summaryPath, nil
 }
 
 func commandError(message string, out []byte, err error) error {

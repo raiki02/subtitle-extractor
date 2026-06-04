@@ -11,10 +11,11 @@ import (
 )
 
 type Config struct {
-	Server  ServerConfig  `yaml:"server"`
-	Whisper WhisperConfig `yaml:"whisper"`
-	ASR     ASRConfig     `yaml:"asr"`
-	LLM     LLMConfig     `yaml:"llm"`
+	Server       ServerConfig       `yaml:"server"`
+	Whisper      WhisperConfig      `yaml:"whisper"`
+	ASR          ASRConfig          `yaml:"asr"`
+	VideoSummary VideoSummaryConfig `yaml:"video_summary"`
+	LLM          LLMConfig          `yaml:"llm"`
 }
 
 type ServerConfig struct {
@@ -50,6 +51,28 @@ type ASRTranscribeConfig struct {
 	BeamSize      int    `yaml:"beam_size"`
 	VADFilter     *bool  `yaml:"vad_filter"`
 	InitialPrompt string `yaml:"initial_prompt"`
+}
+
+type VideoSummaryConfig struct {
+	BaseURL   string                      `yaml:"base_url"`
+	Timeout   string                      `yaml:"timeout"`
+	Model     VideoSummaryModelConfig     `yaml:"model"`
+	Summarize VideoSummarySummarizeConfig `yaml:"summarize"`
+}
+
+type VideoSummaryModelConfig struct {
+	Name    string `yaml:"name"`
+	Device  string `yaml:"device"`
+	DType   string `yaml:"dtype"`
+	Compile bool   `yaml:"compile"`
+}
+
+type VideoSummarySummarizeConfig struct {
+	MaxNewTokens int     `yaml:"max_new_tokens"`
+	Prompt       string  `yaml:"prompt"`
+	DoSample     *bool   `yaml:"do_sample"`
+	Temperature  float32 `yaml:"temperature"`
+	TopP         float32 `yaml:"top_p"`
 }
 
 type LLMConfig struct {
@@ -123,6 +146,30 @@ func (c *Config) applyDefaults() {
 	if c.ASR.Transcribe.BeamSize == 0 {
 		c.ASR.Transcribe.BeamSize = 5
 	}
+	if c.VideoSummary.BaseURL == "" {
+		c.VideoSummary.BaseURL = "http://localhost:8002"
+	}
+	if c.VideoSummary.Timeout == "" {
+		c.VideoSummary.Timeout = "20m"
+	}
+	if c.VideoSummary.Model.Name == "" {
+		c.VideoSummary.Model.Name = "./models/marlin"
+	}
+	if c.VideoSummary.Model.Device == "" {
+		c.VideoSummary.Model.Device = "auto"
+	}
+	if c.VideoSummary.Model.DType == "" {
+		c.VideoSummary.Model.DType = "bfloat16"
+	}
+	if c.VideoSummary.Summarize.MaxNewTokens == 0 {
+		c.VideoSummary.Summarize.MaxNewTokens = 2048
+	}
+	if c.VideoSummary.Summarize.Temperature == 0 {
+		c.VideoSummary.Summarize.Temperature = 1.0
+	}
+	if c.VideoSummary.Summarize.TopP == 0 {
+		c.VideoSummary.Summarize.TopP = 1.0
+	}
 	if c.Whisper.ModelPath == "" {
 		c.Whisper.ModelPath = "./models/ggml-small.bin"
 	}
@@ -193,10 +240,17 @@ func (c Config) validate() error {
 	if _, err := c.ASR.TimeoutDuration(); err != nil {
 		return fmt.Errorf("invalid asr.timeout: %w", err)
 	}
+	if _, err := c.VideoSummary.TimeoutDuration(); err != nil {
+		return fmt.Errorf("invalid video_summary.timeout: %w", err)
+	}
 	return nil
 }
 
 func (c ASRConfig) TimeoutDuration() (time.Duration, error) {
+	return time.ParseDuration(c.Timeout)
+}
+
+func (c VideoSummaryConfig) TimeoutDuration() (time.Duration, error) {
 	return time.ParseDuration(c.Timeout)
 }
 
