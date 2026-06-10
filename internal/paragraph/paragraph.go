@@ -36,8 +36,9 @@ func formatText(ctx context.Context, rawText string, cfg appconfig.LLMConfig, ha
 		return rawText, nil
 	}
 	fallback := hasFallback && (cfg.FallbackToRawOnError == nil || *cfg.FallbackToRawOnError)
+	formatCtx := context.WithoutCancel(ctx)
 
-	cm, err := NewChatModel(ctx, cfg)
+	cm, err := NewChatModel(formatCtx, cfg)
 	if err != nil {
 		if fallback {
 			slog.Warn("llm.format.unavailable_fallback", "err", err)
@@ -54,20 +55,16 @@ func formatText(ctx context.Context, rawText string, cfg appconfig.LLMConfig, ha
 		perChunkTimeout = 3 * time.Minute
 	}
 
-	formatted := formatChunksParallel(ctx, cm, chunks, cfg, perChunkTimeout, fallback)
+	formatted := formatChunksParallel(formatCtx, cm, chunks, rawText, cfg, perChunkTimeout, fallback)
 	slog.Info("llm.format.done", "elapsed", time.Since(start))
 	return strings.Join(formatted, "\n\n"), nil
-}
-
-type chunkResult struct {
-	index int
-	text  string
 }
 
 func formatChunksParallel(
 	ctx context.Context,
 	cm einomodel.BaseChatModel,
 	chunks []string,
+	rawText string,
 	cfg appconfig.LLMConfig,
 	perChunkTimeout time.Duration,
 	fallback bool,
@@ -84,10 +81,13 @@ func formatChunksParallel(
 	}
 
 	sem := make(chan struct{}, maxParallelChunks)
-	results := make([]chunkResult, len(chunks))
+	results := make([]string, len(chunks))
+	if fallback {
+		copy(results, chunks)
+	}
 	var wg sync.WaitGroup
 	var mu sync.Mutex
-	var firstErr error
+	var failedCount int
 
 	for i, chunk := range chunks {
 		wg.Add(1)
@@ -99,29 +99,32 @@ func formatChunksParallel(
 			result := formatChunk(ctx, cm, cfg, idx, text, perChunkTimeout)
 
 			mu.Lock()
-			if result == "" && firstErr == nil {
-				firstErr = errChunkFailed
+			if result == "" {
+				failedCount++
 			}
 			if result != "" {
-				results[idx] = chunkResult{index: idx, text: result}
+				results[idx] = result
 			}
 			mu.Unlock()
 		}(i, chunk)
 	}
 	wg.Wait()
 
-	if firstErr != nil {
-		if fallback {
-			slog.Warn("llm.format.chunk_failed_fallback", "err", firstErr)
-			return nil
-		}
+	if failedCount > 0 && !fallback {
 		return nil
+	}
+	if failedCount == len(chunks) && fallback {
+		slog.Warn("llm.format.chunk_failed_fallback", "err", errChunkFailed)
+		return []string{rawText}
+	}
+	if failedCount > 0 {
+		slog.Warn("llm.format.chunk_partial_fallback", "failed_chunks", failedCount, "total_chunks", len(chunks))
 	}
 
 	formatted := make([]string, 0, len(results))
-	for _, r := range results {
-		if r.text != "" {
-			formatted = append(formatted, r.text)
+	for _, text := range results {
+		if text != "" {
+			formatted = append(formatted, text)
 		}
 	}
 	return formatted
@@ -142,7 +145,7 @@ func formatChunk(
 	timeout time.Duration,
 ) string {
 	stage := time.Now()
-	ctx, cancel := context.WithTimeout(parentCtx, timeout)
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(parentCtx), timeout)
 	defer cancel()
 
 	resp, err := cm.Generate(ctx, []*schema.Message{
